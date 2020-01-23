@@ -1,0 +1,372 @@
+<Ui>
+	<CheckButton name='TransmogRouletteIgnoreButtonTemplate' virtual='true' frameLevel='100'>
+		<Size x='24' y='24' />
+		<HitRectInsets left='0' right='0' top='0' bottom='0' />
+		<NormalTexture file='Interface/Buttons/UI-GroupLoot-Dice-Up'/>
+		<PushedTexture file='Interface/Buttons/UI-GroupLoot-Dice-Down'/>
+		<HighlightTexture file='Interface/Buttons/UI-GroupLoot-Dice-Highlight' alphaMode='ADD' alpha='0.5' />
+		<CheckedTexture file='Interface/Transmogrify/Textures.png' desaturated='false'>
+			<TexCoords left='0.2890625' right='0.5546875' top='0.51171875' bottom='0.578125'/>
+		</CheckedTexture>
+		<Scripts>
+			<OnLoad>
+				-- not sure why registerForClicks='ANYUP' xml attribute isn't working for this
+				self:RegisterForClicks('ANYUP')
+			</OnLoad>
+			<OnMouseDown>
+				if button == 'LeftButton' and not IsModifierKeyDown() then
+					-- start rolling
+					TransmogRouletteButton:StartRolling(self.slotID)
+					self.rolling = true
+				-- else set checkbox, but that's automatically handled
+				end
+				GameTooltip_Hide()
+			</OnMouseDown>
+			<OnMouseUp>
+				if self.rolling then
+					TransmogRouletteButton:StopRolling()
+					self.rolling = false
+					if MouseIsOver(self) then -- it only gets checked if the mouse is released on top of it
+						self:SetChecked(not self:GetChecked())
+					end
+				end
+			</OnMouseUp>
+			<OnEnter>
+				if self.rolling then return end -- mouse left and returned while holding down the button
+				GameTooltip:SetOwner(self, 'ANCHOR_RIGHT')
+				GameTooltip:AddLine('TransmogRoulette', 1, 0.5, 0)
+				GameTooltip:AddLine('Left-click to randomize only this slot')
+				GameTooltip:AddLine('Shift or right-click to exclude this slot from randomization')
+				GameTooltip:Show()
+			</OnEnter>
+			<OnLeave function='GameTooltip_Hide' />
+		</Scripts>
+	</CheckButton>
+	
+	<Button name='TransmogRouletteOutfitButton' parent='WardrobeOutfitDropDown' frameLevel='100'>
+		<Size x='20' y='20' />
+		<NormalTexture file='Interface/Buttons/UI-GroupLoot-Dice-Up'/>
+		<PushedTexture file='Interface/Buttons/UI-GroupLoot-Dice-Down'/>
+		<HighlightTexture file='Interface/Buttons/UI-GroupLoot-Dice-Highlight' alphaMode='ADD' alpha='0.5' />
+		<Anchors>
+			<!-- Anchor point='TOPLEFT' relativePoint='BOTTOMRIGHT' x='-28' y='4' / -->
+			<Anchor point='RIGHT' relativePoint='LEFT' relativeTo='WardrobeOutfitDropDownButton' x='-2' y='-2' />
+		</Anchors>
+		<Scripts>
+			<OnMouseDown>
+				self.rolling = true
+				TransmogRouletteButton:StartRolling(0)
+				GameTooltip_Hide()
+			</OnMouseDown>
+			<OnMouseUp>
+				if self.rolling then
+					TransmogRouletteButton:StopRolling()
+					self.rolling = false
+				end
+			</OnMouseUp>
+			<OnEnter>
+				if self.rolling then return end
+				GameTooltip:SetOwner(self, 'ANCHOR_RIGHT')
+				GameTooltip:AddLine('TransmogRoulette', 1, 0.5, 0)
+				GameTooltip:AddLine('Choose a random outfit')
+				GameTooltip:Show()
+			</OnEnter>
+			<OnLeave function='GameTooltip_Hide' />
+		</Scripts>
+	</Button>
+	
+	<Button name='TransmogRouletteButton' parent='WardrobeTransmogFrame' frameLevel='100'>
+		<Size x='32' y='32' />
+		<Anchors>
+			<Anchor point='BOTTOMRIGHT' x='-8' y='6' />
+		</Anchors>
+		<NormalTexture parentKey='icon' file='interface/icons/ability_rogue_rollthebones' horizTile='false' vertTile='false'/>
+		<Frames>
+			<Frame parentKey='border' setAllPoints='true'>
+				<Layers>
+					<Layer level='ARTWORK'>
+						<Texture parentKey='glow' file='Interface/Transmogrify/Textures.png' desaturated='true'>
+							<Size x='58' y='57' />
+							<Anchors>
+								<Anchor point='CENTER'/>
+							</Anchors>
+							<TexCoords left='0.5234375' right='0.9765625' top='0.38476563' bottom='0.49609375'/>
+							<Color r='1' g='0.3' b='0' />
+						</Texture>
+					</Layer>
+					<Layer level='OVERLAY'>
+						<Texture parentKey='ants' file='Interface/Transmogrify/PurpleIconAlertAnts.png' desaturated='true'>
+							<Size x='44' y='44' />
+							<Anchors>
+								<Anchor point='CENTER' />
+							</Anchors>
+							<Color r='1' g='0.3' b='0' />
+						</Texture>
+					</Layer>
+				</Layers>
+				<Scripts>
+					<OnLoad>
+						self.throttle = 0.03
+					</OnLoad>
+					<OnUpdate>
+						AnimateTexCoords(self.ants, 256, 256, 48, 48, 22, elapsed, self.throttle)
+					</OnUpdate>
+				</Scripts>    
+			</Frame>
+		</Frames>
+		<Scripts>
+			<OnShow>
+				C_Timer.After(0, function() -- inexplicibly required for C_TransmogCollection.GetCategoryAppearances() to return data for whatever category is actively selected when the frame is shown
+				-- probably an issue with the filter?
+				-- todo: figure out why this is happening for a real fix
+				local FilteredList = self.FilteredList
+				wipe(FilteredList)
+				for i, slotInfo in ipairs(TRANSMOG_SLOTS) do
+					local slot = slotInfo.slot
+					local slotID = GetInventorySlotInfo(slot)
+					if not FilteredList[ slotID ] then
+						FilteredList[ slotID ] = {}
+					end
+					local isTransmogrified, hasPending, isPendingCollected, canTransmogrify, cannotTransmogrifyReason, hasUndo = C_Transmog.GetSlotInfo(slotID, LE_TRANSMOG_TYPE_APPEARANCE)
+					if canTransmogrify or cannotTransmogrifyReason == 0 then
+						local categoryID = slotInfo.armorCategoryID
+						if categoryID then
+							for i, v in ipairs(C_TransmogCollection.GetCategoryAppearances(categoryID)) do
+								if v.isUsable and v.isCollected then
+									tinsert(FilteredList[ slotID ], v.visualID)
+								end
+							end
+						else
+							-- This is mostly a hack for feral druid's dual daggers, because C_TransmogCollection.GetCategoryInfo claims you can't transmog anything to your offhand slot
+							-- It could probably replace the code block above this
+							local baseSourceID, baseVisualID, appliedSourceID, appliedVisualID, pendingSourceID, pendingVisualID, hasPendingUndo = C_Transmog.GetSlotVisualInfo(slotID, LE_TRANSMOG_TYPE_APPEARANCE)
+							local baseCategoryID = C_TransmogCollection.GetAppearanceSourceInfo(baseSourceID) -- we can always transmog an item into its own category?
+							for i, v in ipairs(C_TransmogCollection.GetCategoryAppearances(baseCategoryID)) do
+								if v.isUsable and v.isCollected then
+									tinsert(FilteredList[ slotID ], v.visualID)
+								end
+							end
+							for categoryID = FIRST_TRANSMOG_COLLECTION_WEAPON_TYPE, LAST_TRANSMOG_COLLECTION_WEAPON_TYPE do
+								local name, isWeapon, canEnchant, canMainHand, canOffHand = C_TransmogCollection.GetCategoryInfo(categoryID);
+								if name and isWeapon and categoryID ~= baseCategoryID then
+									if (slot == 'MAINHANDSLOT' and canMainHand) or (slot == 'SECONDARYHANDSLOT' and canOffHand) then
+										-- make sure we can actually transmog our weapon into this category
+										local equippedItemID = GetInventoryItemID('player', GetInventorySlotInfo(slot))
+										if C_TransmogCollection.IsCategoryValidForItem(categoryID, equippedItemID) then
+											for i, v in ipairs(C_TransmogCollection.GetCategoryAppearances(categoryID)) do
+												if v.isUsable and v.isCollected then 
+													tinsert(FilteredList[ slotID ], v.visualID)
+												end
+											end
+										end
+									end
+								end
+							end
+						end
+					end
+				end
+				end)
+			</OnShow>
+			<OnLoad>
+				self.FilteredList = {}
+				-- todo: maybe store these in sv
+				local IgnoreButtons = {}
+				for _, button in pairs(WardrobeTransmogFrame.ModelScene.SlotButtons) do
+					if button ~= WardrobeTransmogFrame.ModelScene.MainHandEnchantButton -- skip illusion buttons
+					and button ~= WardrobeTransmogFrame.ModelScene.SecondaryHandEnchantButton then
+						local f = CreateFrame('CheckButton', nil, button, 'TransmogRouletteIgnoreButtonTemplate')
+						f:SetPoint('BOTTOMRIGHT', 5, -5)
+						f.slot = button.slot
+						local slotID = GetInventorySlotInfo(button.slot)
+						f.slotID = slotID
+						IgnoreButtons[ slotID ] = f
+						
+						if button == WardrobeTransmogFrame.ModelScene.ShirtButton -- ignore shirt and tabard by default
+						or button == WardrobeTransmogFrame.ModelScene.TabardButton then
+							f:SetChecked(true)
+						end
+					end
+				end
+				
+				local function RandomizeSlot(slotID)
+					local visuals = self.FilteredList[ slotID ]
+					if not visuals then return end
+					
+					-- todo: store the sourceIDs directly in the filtered list instead of appearances
+					local numVisuals = #visuals
+					if numVisuals > 0 then
+						local appearanceID = visuals[ random(numVisuals) ]
+						if appearanceID then
+							local sources = C_TransmogCollection.GetAppearanceSources(appearanceID)
+							if sources then
+								for i, source in pairs(sources) do
+									if source.isCollected then
+										local sourceID = source.sourceID
+										--C_Transmog.ClearPending(slotID, LE_TRANSMOG_TYPE_APPEARANCE)
+										C_Transmog.SetPending(slotID, LE_TRANSMOG_TYPE_APPEARANCE, sourceID)
+										break
+									end
+								end
+							end
+						end
+					end
+				end
+				
+				self.RandomizeSlot = RandomizeSlot
+				
+				local function RandomizeAllSlots()
+					for slotID, visuals in pairs(self.FilteredList) do
+						if not IgnoreButtons[ slotID ]
+						or not IgnoreButtons[ slotID ]:GetChecked() then
+							RandomizeSlot(slotID)
+						end
+					end
+				end
+				
+				local Released = false
+				local DefaultSpinThrottle = 0.1
+				local SpinThrottle = DefaultSpinThrottle
+				local TimeSince = 0
+				
+				local RandomizedSlot -- specific slot to randomize
+				local function RandomizeSlotOnUpdate(self, elapsed)
+					TimeSince = TimeSince + elapsed
+					if TimeSince >= SpinThrottle then
+						RandomizeSlot(RandomizedSlot)
+						if Released then
+							SpinThrottle = SpinThrottle * 1.3
+							if SpinThrottle >= 0.3 then
+								self:SetScript('OnUpdate', nil)
+							end
+						end
+						TimeSince = 0
+					end
+				end
+				
+				local function RandomizeAllOnUpdate(self, elapsed)
+					TimeSince = TimeSince + elapsed
+					if TimeSince >= SpinThrottle then
+						RandomizeAllSlots()
+						if Released then
+							SpinThrottle = SpinThrottle * 1.3
+							if SpinThrottle >= 0.3 then
+								self:SetScript('OnUpdate', nil)
+							end
+						end
+						TimeSince = 0
+					end
+				end
+				
+				-- Outfit stuff
+				-- I should probably put this stuff in a lua file at some point
+				local function RandomNot(min, max, n)
+					-- return a number between min and max that isn't "n"
+					--if not n then return random(min, max) end
+					if min >= max then return min end
+					local num = random(min + 1, max)
+					return num == n and min or num
+				end
+				
+				-- local LastOutfit -- store previous outfit rather than testing for the current outfit every time
+				local CollectedOutfits = {}
+				local function GetOutfits()
+					-- outfits are NOT guaranteed to be a sequential list
+					-- eg. if you make 2 outfits and delete the first one, your list will start from 1 instead of 0; it can have holes in it
+					wipe(CollectedOutfits)
+					local prevSelection = WardrobeOutfitDropDown.selectedOutfitID
+					local outfits = C_TransmogCollection.GetOutfits()
+					for _, outfit in pairs(outfits) do
+						if outfit.collected then -- assuming it's not "collected" if you're missing an appearance from it, I don't know if I should ignore these or not
+							tinsert(CollectedOutfits, outfit.outfitID)
+						end
+					end
+					
+					-- Get index of current outfit ID in our filtered list
+					for i, outfitID in ipairs(CollectedOutfits) do
+						WardrobeOutfitDropDown.selectedOutfitID = outfitID
+						if WardrobeOutfitDropDown:IsOutfitDressed() then -- returns TRUE for invalid outfitIDs, this is important
+							WardrobeOutfitDropDown.selectedOutfitID = prevSelection
+							--LastOutfit = i
+							return CollectedOutfits, i, outfitID --outfitID
+						end
+					end
+					WardrobeOutfitDropDown.selectedOutfitID = prevSelection
+					return CollectedOutfits
+				end
+				
+				local function EquipRandomOutfit()
+					local outfits, currentOutfit = GetOutfits()
+					local numOutfits = #outfits
+					if numOutfits > 1 then
+						local randomOutfitID
+						if currentOutfit then
+							randomOutfitID = outfits[ RandomNot(1, numOutfits, currentOutfit) ]
+						else
+							randomOutfitID = outfits[ random(numOutfits) ]
+						end
+						WardrobeOutfitDropDown:SelectOutfit(randomOutfitID, true)
+					elseif numOutfits == 1 then
+						WardrobeOutfitDropDown:SelectOutfit(outfits[1], true)
+					end
+				end
+				
+				local function RandomizeOutfitOnUpdate(self, elapsed)
+					TimeSince = TimeSince + elapsed
+					if TimeSince >= SpinThrottle then
+						EquipRandomOutfit()
+						if Released then
+							SpinThrottle = SpinThrottle * 1.3
+							if SpinThrottle >= 0.3 then
+								self:SetScript('OnUpdate', nil)
+							end
+						end
+						TimeSince = 0
+					end
+				end
+				
+				function self:StartRolling(slotID)
+					TimeSince = 0
+					SpinThrottle = DefaultSpinThrottle
+					Released = false
+					
+					if slotID then
+						if slotID == 0 then -- outfit (probably not the best way to do this)
+							--LastOutfit = nil
+							EquipRandomOutfit()
+							self:SetScript('OnUpdate', RandomizeOutfitOnUpdate)
+						else
+							RandomizedSlot = slotID
+							RandomizeSlot(slotID)
+							self:SetScript('OnUpdate', RandomizeSlotOnUpdate)
+						end
+					else
+						RandomizeAllSlots()
+						self:SetScript('OnUpdate', RandomizeAllOnUpdate)
+					end
+				end
+
+				function self:StopRolling()
+					Released = true
+				end
+			</OnLoad>
+			<OnHide>
+				-- In case this is still doing something for some reason, stop it
+				self:SetScript('OnUpdate', nil)
+			</OnHide>
+			<OnMouseDown>
+				self.icon:SetTexCoord(-0.03, 0.97, -0.03, 0.97)
+				self.border.throttle = 0.005
+				self.border.glow:SetVertexColor(1, 0, 0)
+				self.border.ants:SetVertexColor(1, 0, 0)
+				self:StartRolling()
+			</OnMouseDown>
+			<OnMouseUp>
+				self.icon:SetTexCoord(0, 1, 0, 1)
+				self.border.throttle = 0.03
+				self.border.glow:SetVertexColor(1, 0.3, 0)
+				self.border.ants:SetVertexColor(1, 0.3, 0)
+				self:StopRolling()
+			</OnMouseUp>
+		</Scripts>
+	</Button>
+</Ui>

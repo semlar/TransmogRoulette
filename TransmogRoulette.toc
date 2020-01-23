@@ -1,0 +1,10 @@
+## Interface: 80300
+## Title: TransmogRoulette
+## Notes: Enhances the transmog UI with randomization buttons
+## Author: Semlar
+## Version: 8.3.0.2
+
+## LoadOnDemand: 1
+## LoadWith: Blizzard_Collections
+
+TransmogRoulette.xml
