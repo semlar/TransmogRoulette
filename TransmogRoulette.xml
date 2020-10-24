@@ -121,46 +121,56 @@
 				-- todo: figure out why this is happening for a real fix
 				local FilteredList = self.FilteredList
 				wipe(FilteredList)
-				for i, slotInfo in ipairs(TRANSMOG_SLOTS) do
-					local slot = slotInfo.slot
-					local slotID = GetInventorySlotInfo(slot)
-					if not FilteredList[ slotID ] then
-						FilteredList[ slotID ] = {}
-					end
-					local isTransmogrified, hasPending, isPendingCollected, canTransmogrify, cannotTransmogrifyReason, hasUndo = C_Transmog.GetSlotInfo(slotID, LE_TRANSMOG_TYPE_APPEARANCE)
-					if canTransmogrify or cannotTransmogrifyReason == 0 then
-						local categoryID = slotInfo.armorCategoryID
-						if categoryID then
-							for i, v in ipairs(C_TransmogCollection.GetCategoryAppearances(categoryID)) do
-								if v.isUsable and v.isCollected then
-									tinsert(FilteredList[ slotID ], v.visualID)
+				for i, slotInfo in pairs(TRANSMOG_SLOTS) do
+					local slot = slotInfo.location:GetSlotName()
+					if slot then
+						local slotID = GetInventorySlotInfo(slot)
+						if not FilteredList[ slotID ] then
+							FilteredList[ slotID ] = {}
+						end
+						local isTransmogrified, hasPending, isPendingCollected, canTransmogrify, cannotTransmogrifyReason, hasUndo, isHideVisual, texture = C_Transmog.GetSlotInfo(slotInfo.location, Enum.TransmogType.Appearance)
+						if canTransmogrify or cannotTransmogrifyReason == 0 then
+							local categoryID = slotInfo.armorCategoryID
+							if categoryID then
+								for i, v in ipairs(C_TransmogCollection.GetCategoryAppearances(categoryID)) do
+									if v.isUsable and v.isCollected then
+										tinsert(FilteredList[ slotID ], {visualID=v.visualID, categoryID=categoryID})
+									end
 								end
-							end
-						else
-							-- This is mostly a hack for feral druid's dual daggers, because C_TransmogCollection.GetCategoryInfo claims you can't transmog anything to your offhand slot
-							-- It could probably replace the code block above this
-							local baseSourceID, baseVisualID, appliedSourceID, appliedVisualID, pendingSourceID, pendingVisualID, hasPendingUndo = C_Transmog.GetSlotVisualInfo(slotID, LE_TRANSMOG_TYPE_APPEARANCE)
-							local baseCategoryID = C_TransmogCollection.GetAppearanceSourceInfo(baseSourceID) -- we can always transmog an item into its own category?
-							for i, v in ipairs(C_TransmogCollection.GetCategoryAppearances(baseCategoryID)) do
-								if v.isUsable and v.isCollected then
-									tinsert(FilteredList[ slotID ], v.visualID)
+							else
+								-- This is mostly a hack for feral druid's dual daggers, because C_TransmogCollection.GetCategoryInfo claims you can't transmog anything to your offhand slot
+								-- It could probably replace the code block above this
+								local baseSourceID, baseVisualID, appliedSourceID, appliedVisualID, pendingSourceID, pendingVisualID, hasPendingUndo = C_Transmog.GetSlotVisualInfo(slotInfo.location, Enum.TransmogType.Appearance)
+								local baseCategoryID = C_TransmogCollection.GetAppearanceSourceInfo(baseSourceID) -- we can always transmog an item into its own category?
+								if baseCategoryID then
+									for i, v in ipairs(C_TransmogCollection.GetCategoryAppearances(baseCategoryID)) do
+										if v.isUsable and v.isCollected then
+											tinsert(FilteredList[ slotID ], {visualID=v.visualID, categoryID=baseCategoryID})
+										end
+									end
 								end
-							end
-							for categoryID = FIRST_TRANSMOG_COLLECTION_WEAPON_TYPE, LAST_TRANSMOG_COLLECTION_WEAPON_TYPE do
-								local name, isWeapon, canEnchant, canMainHand, canOffHand = C_TransmogCollection.GetCategoryInfo(categoryID);
-								if name and isWeapon and categoryID ~= baseCategoryID then
-									if (slot == 'MAINHANDSLOT' and canMainHand) or (slot == 'SECONDARYHANDSLOT' and canOffHand) then
-										-- make sure we can actually transmog our weapon into this category
-										local equippedItemID = GetInventoryItemID('player', GetInventorySlotInfo(slot))
-										if C_TransmogCollection.IsCategoryValidForItem(categoryID, equippedItemID) then
-											for i, v in ipairs(C_TransmogCollection.GetCategoryAppearances(categoryID)) do
-												if v.isUsable and v.isCollected then 
-													tinsert(FilteredList[ slotID ], v.visualID)
+
+								--[[ FIXME: Figure out how to get the correct categoryID for visualID 27492 (should be 29/Artifact, we get 23/Staves)
+								for categoryID = FIRST_TRANSMOG_COLLECTION_WEAPON_TYPE, LAST_TRANSMOG_COLLECTION_WEAPON_TYPE do
+									local name, isWeapon, canEnchant, canMainHand, canOffHand = C_TransmogCollection.GetCategoryInfo(categoryID);
+									if name and isWeapon and categoryID ~= baseCategoryID then
+										if (slot == 'MAINHANDSLOT' and canMainHand) or (slot == 'SECONDARYHANDSLOT' and canOffHand) then
+											-- make sure we can actually transmog our weapon into this category
+											local equippedItemID = GetInventoryItemID('player', GetInventorySlotInfo(slot))
+											if C_TransmogCollection.IsCategoryValidForItem(categoryID, equippedItemID) then
+												for i, v in ipairs(C_TransmogCollection.GetCategoryAppearances(categoryID)) do
+													if v.isUsable and v.isCollected then 
+														--if v.visualID == 27492 then
+															--print(v.visualID, baseCategoryID, categoryID)
+														--end
+														--tinsert(FilteredList[ slotID ], {visualID=v.visualID, categoryID=categoryID})
+													end
 												end
 											end
 										end
 									end
 								end
+								--]]
 							end
 						end
 					end
@@ -195,17 +205,18 @@
 					-- todo: store the sourceIDs directly in the filtered list instead of appearances
 					local numVisuals = #visuals
 					if numVisuals > 0 then
-						local appearanceID = visuals[ random(numVisuals) ]
-						if appearanceID then
-							local sources = C_TransmogCollection.GetAppearanceSources(appearanceID)
-							if sources then
-								for i, source in pairs(sources) do
-									if source.isCollected then
-										local sourceID = source.sourceID
-										--C_Transmog.ClearPending(slotID, LE_TRANSMOG_TYPE_APPEARANCE)
-										C_Transmog.SetPending(slotID, LE_TRANSMOG_TYPE_APPEARANCE, sourceID)
-										break
-									end
+						local appearance = visuals[ random(numVisuals) ]
+						local appearanceID = appearance.visualID
+						local categoryID = appearance.categoryID
+						local sources = C_TransmogCollection.GetAppearanceSources(appearanceID, categoryID)
+						if sources then
+							for i, source in pairs(sources) do
+								if source.isCollected then
+									local sourceID = source.sourceID
+									--C_Transmog.ClearPending(slotID, Enum.TransmogType.Appearance)
+									local transmogLocation = TransmogUtil.GetTransmogLocation(slotID, Enum.TransmogType.Appearance, Enum.TransmogModification.None);
+									C_Transmog.SetPending(transmogLocation, sourceID, categoryID)
+									break
 								end
 							end
 						end
