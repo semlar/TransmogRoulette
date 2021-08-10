@@ -181,7 +181,7 @@
 				self.FilteredList = {}
 				-- todo: maybe store these in sv
 				local IgnoreButtons = {}
-				for _, button in pairs(WardrobeTransmogFrame.ModelScene.SlotButtons) do
+				for _, button in pairs(WardrobeTransmogFrame.SlotButtons) do
 					if button ~= WardrobeTransmogFrame.ModelScene.MainHandEnchantButton -- skip illusion buttons
 					and button ~= WardrobeTransmogFrame.ModelScene.SecondaryHandEnchantButton then
 						local f = CreateFrame('CheckButton', nil, button, 'TransmogRouletteIgnoreButtonTemplate')
@@ -214,8 +214,9 @@
 								if source.isCollected then
 									local sourceID = source.sourceID
 									--C_Transmog.ClearPending(slotID, Enum.TransmogType.Appearance)
-									local transmogLocation = TransmogUtil.GetTransmogLocation(slotID, Enum.TransmogType.Appearance, Enum.TransmogModification.None);
-									C_Transmog.SetPending(transmogLocation, sourceID, categoryID)
+									local transmogLocation = TransmogUtil.GetTransmogLocation(slotID, Enum.TransmogType.Appearance, Enum.TransmogModification.Main)
+									local pendingInfo = TransmogUtil.CreateTransmogPendingInfo(Enum.TransmogPendingType.Apply, sourceID)
+									C_Transmog.SetPending(transmogLocation, pendingInfo)
 									break
 								end
 							end

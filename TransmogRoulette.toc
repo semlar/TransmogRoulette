@@ -1,8 +1,8 @@
-## Interface: 90002
+## Interface: 90100
 ## Title: TransmogRoulette
 ## Notes: Enhances the transmog UI with randomization buttons
 ## Author: Semlar
-## Version: 9.0.2.0
+## Version: 9.1.0.0
 
 ## LoadOnDemand: 1
 ## LoadWith: Blizzard_Collections
